@@ -1,210 +1,178 @@
 import React, { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
-import { jwtDecode as jwt_decode } from 'jwt-decode';
-
-
-const SERVER_URL = 'http://localhost:3000'; // Your WebSocket server URL
+import io from 'socket.io-client';
 
 const Chatroom = () => {
-  const [socket, setSocket] = useState(null);
-  const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState([]);
-  const [users, setUsers] = useState([]);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // Get the token from localStorage
-    const token = localStorage.getItem('token');
-
-    // If there's no token, redirect to login
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    // Decode the token to get expiration time
-    const decodedToken = jwt_decode(token);
-    const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
-
-    // Check if token is expired
-    if (Date.now() > expirationTime) {
-      localStorage.removeItem('token');
-      navigate('/login');
-      return;
-    }
-
-    // Set a timeout to log out the user when the token expires
-    const tokenTimeout = setTimeout(() => {
-      localStorage.removeItem('token');
-      navigate('/login');
-    }, expirationTime - Date.now());
-
-    // Initialize the WebSocket connection
-    const newSocket = io(SERVER_URL, {
-      auth: {
-        token: token, // Send the token with the handshake
-      },
+    const [message, setMessage] = useState('');
+    const [messages, setMessages] = useState([]);
+    const [username, setUsername] = useState('');
+    const [users, setUsers] = useState([]);
+    const navigate = useNavigate();
+    const token = localStorage.getItem('token'); // Assume token is stored after login
+    const socket = io('https://b505-182-185-140-255.ngrok-free.app', {
+        auth: {
+            token: localStorage.getItem('token'),  // Ensure you are passing the token if required
+        },
     });
 
-    // Store the socket connection in state
-    setSocket(newSocket);
+    useEffect(() => {
+        if (!token) {
+            navigate('/login');
+            return; // Prevent further execution if no token
+        }
 
-    // Listen for messages from the server
-    newSocket.on('message', (data) => {
-      setChatHistory((prevHistory) => [...prevHistory, data]);
-    });
+        // Listen for connection success
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server');
+            socket.emit('join');
+        });
 
-    // Listen for updated user list
-    newSocket.on('users', (usersList) => {
-      setUsers(Object.values(usersList)); // Convert the users object to an array
-    });
+        socket.on('connect_error', (err) => {
+            console.error('Connection error:', err.message);
+        });
 
-    // Clean up when the component is unmounted
-    return () => {
-      clearTimeout(tokenTimeout);
-      newSocket.disconnect();
+        // Set username from token (mock logic, replace with actual decode logic)
+        const decodedToken = JSON.parse(atob(token.split('.')[1]));
+        setUsername(decodedToken.username);
+
+        // Listen for incoming messages
+        socket.on('message', (msg) => {
+            console.log('Received message:', msg);
+            setMessages((prevMessages) => [...prevMessages, msg]);
+        });
+
+        // Listen for the list of connected users
+        socket.on('users', (users) => {
+            console.log('Connected users:', users);
+            setUsers(Object.values(users)); // Convert the users object into an array
+        });
+
+        // Clean up on unmount
+        return () => {
+            socket.disconnect();
+            console.log('Socket disconnected');
+        };
+    }, [socket, token, navigate]);
+
+    const sendMessage = () => {
+        if (message.trim()) {
+            socket.emit('message', { message });
+            setMessage(''); // Clear the input after sending the message
+        }
     };
-  }, [navigate]);
 
-  const sendMessage = () => {
-    if (message.trim() && socket) {
-      socket.emit('message', { message });
-      setMessage('');
-    }
-  };
+    return (
+        <div>
+            <style>
+                {`
+          .chatroom {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+            max-width: 600px;
+            margin: auto;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #f4f4f9;
+          }
 
-  return (
-    <div style={styles.container}>
-      <h2 style={styles.header}>Chatroom</h2>
-      <div style={styles.userList}>
-        <h3>Connected Users</h3>
-        <ul>
-          {users.map((user, index) => (
-            <li key={index} style={styles.user}>{user.username}</li>
-          ))}
-        </ul>
-      </div>
-      <div style={styles.chatContainer}>
-        <div style={styles.chatBox}>
-          {chatHistory.map((msg, index) => (
-            <div
-              key={index}
-              style={msg.username === 'You' ? styles.myMessage : styles.theirMessage}
-            >
-              <strong>{msg.username === 'You' ? 'You' : msg.username}: </strong> {msg.message}
+          .chatroom-header {
+            text-align: center;
+            margin-bottom: 20px;
+          }
+
+          .chatroom-body {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+          }
+
+          .chat-messages {
+            width: 75%;
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+          }
+
+          .message {
+            margin-bottom: 10px;
+          }
+
+          .user-list {
+            width: 20%;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+          }
+
+          .chatroom-footer {
+            display: flex;
+            align-items: center;
+          }
+
+          input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+          }
+
+          button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+          }
+
+          button:hover {
+            background-color: #0056b3;
+          }
+        `}
+            </style>
+
+            <div className="chatroom">
+                <div className="chatroom-header">
+                    <h2>Welcome, {username}</h2>
+                </div>
+                <div className="chatroom-body">
+                    <div className="chat-messages">
+                        {messages.map((msg, index) => (
+                            <div key={index} className="message">
+                                <strong>{msg.username}</strong>: {msg.message}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="user-list">
+                        <h4>Online Users:</h4>
+                        <ul>
+                            {users.map((user, index) => (
+                                <li key={index}>{user.username}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+                <div className="chatroom-footer">
+                    <input
+                        type="text"
+                        placeholder="Type a message..."
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    />
+                    <button onClick={sendMessage}>Send</button>
+                </div>
             </div>
-          ))}
         </div>
-        <div style={styles.inputContainer}>
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type a message"
-            style={styles.input}
-          />
-          <button onClick={sendMessage} style={styles.button}>Send</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Styles
-const styles = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100vh',
-    backgroundColor: '#e9eff5',
-    padding: '20px',
-  },
-  header: {
-    marginBottom: '20px',
-    color: '#333',
-    fontSize: '24px',
-    fontFamily: 'Arial, sans-serif',
-    fontWeight: 'bold',
-  },
-  userList: {
-    position: 'absolute',
-    top: '20px',
-    left: '20px',
-    padding: '10px',
-    backgroundColor: '#ffffff',
-    borderRadius: '8px',
-    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
-    width: '200px',
-    height: 'auto',
-  },
-  user: {
-    listStyleType: 'none',
-    padding: '8px 0',
-    color: '#555',
-    fontSize: '16px',
-  },
-  chatContainer: {
-    width: '600px',
-    backgroundColor: '#ffffff',
-    borderRadius: '8px',
-    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
-    padding: '20px',
-    height: 'auto',
-  },
-  chatBox: {
-    maxHeight: '400px',
-    overflowY: 'scroll',
-    padding: '10px',
-    marginBottom: '20px',
-    backgroundColor: '#f4f4f4',
-    borderRadius: '10px',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  inputContainer: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  input: {
-    flex: 1,
-    padding: '10px',
-    borderRadius: '4px',
-    border: '1px solid #ccc',
-    marginRight: '10px',
-    fontSize: '16px',
-  },
-  button: {
-    padding: '10px 20px',
-    borderRadius: '4px',
-    border: 'none',
-    backgroundColor: '#28a745',
-    color: '#fff',
-    fontSize: '16px',
-    cursor: 'pointer',
-  },
-  myMessage: {
-    backgroundColor: '#d1ffd6',
-    padding: '10px',
-    margin: '10px 0',
-    borderRadius: '20px',
-    alignSelf: 'flex-end',
-    maxWidth: '60%',
-    color: '#333',
-    textAlign: 'right',
-  },
-  theirMessage: {
-    backgroundColor: '#f0f0f0',
-    padding: '10px',
-    margin: '10px 0',
-    borderRadius: '20px',
-    alignSelf: 'flex-start',
-    maxWidth: '60%',
-    color: '#333',
-    textAlign: 'left',
-  },
+    );
 };
 
 export default Chatroom;

@@ -10,18 +10,25 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:3000/users/login', { 
+      // Make the POST request to your backend login API
+      const res = await axios.post('https://b505-182-185-140-255.ngrok-free.app/users/login', { 
         username,  
         password   
       });
       
-      // Save token and user data to localStorage
-      localStorage.setItem('token', res.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+      const { accessToken, user } = res.data;
   
-      // Redirect to chatroom
-      alert('Successfully logged in!');
-      navigate('/chatroom'); // Ensure the route is configured in your React Router
+      if (accessToken) {
+  
+        
+        localStorage.setItem('token', accessToken);
+        localStorage.setItem('user', JSON.stringify(user));
+
+        alert('Successfully logged in!');
+        navigate('/chatroom');
+      } else {
+        alert('Login failed: No token received');
+      }
     } catch (err) {
       console.error(err.response?.data || err.message);
       alert('Login failed');

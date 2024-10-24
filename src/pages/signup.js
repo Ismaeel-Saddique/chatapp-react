@@ -10,7 +10,7 @@ const SignUp = () => {
   const handleSignUp = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:3000/users/signup', { username, password });
+      await axios.post('https://b505-182-185-140-255.ngrok-free.app/users/signup', { username, password });
       alert('Signup successful! Please log in.');
       navigate('/login'); // Redirect to login after signup
     } catch (err) {
